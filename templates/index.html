@@ -1,0 +1,101 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Data Recovery Tool</title>
+    <link href="{% static 'css/styles.css' %}" rel="stylesheet">
+    <link href="{% static 'css/box.css' %}" rel="stylesheet">
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <style>
+        progress {
+            width: 100%;
+            height: 30px;
+        }
+        progress::-webkit-progress-value {
+            background-color: #4CAF50;
+        }
+        progress.green::-webkit-progress-value {
+            background-color: #4CAF50;
+        }
+        progress::-moz-progress-bar {
+            background-color: #4CAF50;
+        }
+        progress.green::-moz-progress-bar {
+            background-color: #4CAF50;
+        }
+        progress::-ms-fill {
+            background-color: #4CAF50;
+        }
+        progress.green::-ms-fill {
+            background-color: #4CAF50;
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-r from-purple-400 to-cyan-300 text-white min-h-screen flex items-center justify-center px-4">
+    <div class="max-w-md w-full bg-slate-800 rounded-lg p-8 shadow-lg">
+        <h1 class="text-2xl font-semibold text-center mb-4">Data Recovery Tool</h1>
+        <div class="box">
+            <form id="recovery-form" method="post" action="{% url 'scan' %}">
+                {% csrf_token %}
+                <div class="mb-4">
+                    <label for="id_device" class="block text-sm font-medium text-white">Select Device</label>
+                    {{ form.device }}
+                </div>
+                <div class="mb-4">
+                    <label for="id_file_type" class="block text-sm font-medium text-white">Select File Type</label>
+                    {{ form.file_type }}
+                </div>
+                <button type="submit" class="w-full bg-blue-500 text-white font-bold py-2 px-4 rounded mt-4 hover:bg-blue-700">Scan</button>
+            </form>
+            <div id="progress-container" class="mt-6">
+                <h2 class="text-xl font-semibold mb-2">Scan Progress</h2>
+                <progress id="scan-progress" value="0" max="100" class="w-full h-4 bg-gray-200"></progress>
+                <span id="progress-text" class="text-center block mt-2">0%</span>
+            </div>
+            <div id="results" class="mt-4"></div>
+        </div>
+    </div>
+    <script>
+        $(document).ready(function() {
+            $('#recovery-form').on('submit', function(event) {
+                event.preventDefault();
+                $('#scan-progress').val(0).removeClass('green');
+                $('#progress-text').text('0%');
+                
+                const device = $('#id_device').val();
+                const file_type = $('#id_file_type').val();
+
+                const socket = new WebSocket('ws://' + window.location.host + '/ws/scan-progress/');
+                socket.onopen = function(e) {
+                    socket.send(JSON.stringify({
+                        'device': device,
+                        'file_type': file_type
+                    }));
+                };
+                socket.onmessage = function(e) {
+                    const data = JSON.parse(e.data);
+                    const progress = data['progress'];
+                    $('#scan-progress').val(progress);
+                    $('#progress-text').text(progress + '%');
+                    if (progress === 100) {
+                        $('#scan-progress').addClass('green');
+                        socket.close();
+                    }
+                };
+                socket.onclose = function(e) {
+                    $.ajax({
+                        url: $('#recovery-form').attr('action'),
+                        type: $('#recovery-form').attr('method'),
+                        data: $('#recovery-form').serialize(),
+                        success: function(response) {
+                            $('#results').html(response);
+                        }
+                    });
+                };
+            });
+        });
+    </script>
+</body>
+</html>
